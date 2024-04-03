@@ -119,23 +119,6 @@ impl SheetBuilderCallbacks for SheetBuilderCallbacksImpl {
 // || GENERATED BUILDERS ||
 // ||||||||||||||||||||||||
 
-impl<'a, T: SheetBuilderCallbacks> SheetBuilder<'a, T> {
-    pub fn new(t: &'a mut T) -> SheetBuilder<T> {
-        SheetBuilder {
-            race_builder: RaceBuilder::default(),
-            class: None,
-            callbacks: t,
-        }
-    }
-
-    pub fn build(mut self) -> Sheet {
-        self.callbacks.pick_race(&mut self);
-        let race = self.race_builder.build();
-        let class = self.class.expect("No class set for sheet.").into();
-        Sheet { race, class }
-    }
-}
-
 #[derive(Default)]
 struct RaceBuilder {
     race: Option<RaceDiscriminants>,
