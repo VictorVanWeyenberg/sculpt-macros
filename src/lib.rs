@@ -1,4 +1,5 @@
 use proc_macro::TokenStream;
+use quote::quote;
 
 use syn::{Data, DataStruct, DeriveInput, Fields, Ident, Type};
 
@@ -79,9 +80,14 @@ fn has_sculpt_attribute(field: &syn::Field) -> bool {
 
 fn derive_builder_from_sculptable(sculptable: SculptableStruct) -> TokenStream {
     let gen = if sculptable.root {
-        generate_root_builder(sculptable)
+        let root_builder = generate_root_builder(&sculptable);
+        let root_struct_build_impl = generate_root_struct_build_impl(&sculptable);
+        quote! {
+            #root_builder
+            #root_struct_build_impl
+        }
     } else {
-        generate_builder(sculptable)
+        generate_builder(&sculptable)
     };
     gen.into()
 }

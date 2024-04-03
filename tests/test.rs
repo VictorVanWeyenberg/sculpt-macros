@@ -291,12 +291,6 @@ impl Into<Cantrip> for CantripDiscriminants {
     }
 }
 
-impl Sheet {
-    pub fn build<T: SheetBuilderCallbacks>(t: &mut T) -> Sheet {
-        SheetBuilder::<T>::new(t).build()
-    }
-}
-
 // ||||||||||
 // || GENERATED TRAITS ||
 // ||||||||||

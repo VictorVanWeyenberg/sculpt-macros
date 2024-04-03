@@ -4,7 +4,7 @@ use quote::{format_ident, quote};
 use crate::{Field, SculptableStruct};
 use crate::generate::tokenize_fields;
 
-pub fn generate_root_builder(sculptable: SculptableStruct) -> proc_macro2::TokenStream {
+pub fn generate_root_builder(sculptable: &SculptableStruct) -> proc_macro2::TokenStream {
     let SculptableStruct { name: sculptable_name, fields: sculptable_fields, .. } = sculptable;
     let sculptable_ident = format_ident!("{}", sculptable_name);
     let builder_name = format_ident!("{}Builder", sculptable_name);

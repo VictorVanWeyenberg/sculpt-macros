@@ -2,11 +2,13 @@ use quote::{format_ident, quote};
 
 pub use builder::*;
 pub use root_builder::*;
+pub use root_struct_build_impl::*;
 
 use crate::Field;
 
 mod root_builder;
 mod builder;
+mod root_struct_build_impl;
 
 const OPTIONS: &str = "Discriminants";
 
