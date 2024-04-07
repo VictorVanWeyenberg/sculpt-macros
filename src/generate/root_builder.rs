@@ -1,8 +1,7 @@
 use proc_macro2::Ident;
 use quote::{format_ident, quote};
 
-use crate::{Field, SculptableStruct};
-use crate::generate::tokenize_fields;
+use crate::generate::{Field, SculptableStruct, tokenize_fields};
 
 pub fn generate_root_builder(sculptable: &SculptableStruct) -> proc_macro2::TokenStream {
     let SculptableStruct { name: sculptable_name, fields: sculptable_fields, .. } = sculptable;
@@ -53,7 +52,7 @@ fn tokenize_field_initializer(field: &Field) -> proc_macro2::TokenStream {
 }
 
 fn tokenize_field_names(fields: &Vec<Field>) -> proc_macro2::TokenStream {
-    let names: Vec<Ident> = fields.iter().map(|f| format_ident!("{}", f.name)).collect();
+    let names: Vec<Ident> = fields.iter().map(|f| format_ident!("{}", f.format_field_name())).collect();
     quote! { #(#names, )* }
 }
 
@@ -63,7 +62,7 @@ fn tokenize_field_builders(sculptable_name: &String, fields: &Vec<Field>) -> pro
 }
 
 fn tokenize_field_builder(sculptable_name: &String, field: &Field) -> proc_macro2::TokenStream {
-    let field_name = format_ident!("{}", field.name);
+    let field_name = format_ident!("{}", field.format_field_name());
     if field.sculpt {
         let builder_name = format_ident!("{}_builder", field.type_name.to_lowercase());
         quote! { let #field_name = self.#builder_name.build(); }

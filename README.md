@@ -12,7 +12,7 @@ So far this is only a proof of concept. The macros have yet to be written.
 #[derive(Sculptor)]
 struct Sheet {
     race: Race,
-    #[sculpt]
+    #[sculptable]
     class: Class
 }
 ```
@@ -113,12 +113,12 @@ pub trait ClassPicker {
 ```rust
 #[derive(Picker)]
 pub enum Race {
-    #[sculpt]
+    #[sculptable]
     Dwarf {
         subrace: DwarfSubrace,
         tool_proficiency: ToolProficiency
     },
-    #[sculpt]
+    #[sculptable]
     Elf {
         subrace: ElfSubrace,
     }
@@ -201,7 +201,7 @@ impl ElfBuilder {
 pub enum ElfSubrace {
   DarkElf, 
   HighElf, 
-  #[sculpt]
+  #[sculptable]
   WoodElf(Cantrip)
 }
 ```

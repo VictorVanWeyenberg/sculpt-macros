@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::io::Write;
 use strum::VariantArray;
 use strum_macros::{Display, EnumDiscriminants, VariantArray};
-use sculpt::Sculptor;
+use sculpt::{Picker, Sculptor};
 
 #[test]
 fn it_works() {
@@ -18,7 +18,7 @@ struct Sheet {
     class: Class
 }
 
-#[derive(Debug, EnumDiscriminants)]
+#[derive(Debug, EnumDiscriminants, Picker)]
 #[strum_discriminants(derive(Display, VariantArray))]
 pub enum Race {
     Dwarf {
@@ -26,35 +26,36 @@ pub enum Race {
         tool_proficiency: ToolProficiency
     },
     Elf {
+        #[sculptable]
         subrace: ElfSubrace,
     }
 }
 
-#[derive(Debug, EnumDiscriminants)]
+#[derive(Debug, EnumDiscriminants, Picker)]
 #[strum_discriminants(derive(Display, VariantArray))]
 pub enum Class {
     Bard, Paladin
 }
 
-#[derive(Debug, EnumDiscriminants)]
+#[derive(Debug, EnumDiscriminants, Picker)]
 #[strum_discriminants(derive(Display, VariantArray))]
 pub enum DwarfSubrace {
     HillDwarf, MountainDwarf
 }
 
-#[derive(Debug, EnumDiscriminants)]
+#[derive(Debug, EnumDiscriminants, Picker)]
 #[strum_discriminants(derive(Display, VariantArray))]
 pub enum ToolProficiency {
     Hammer, Saw
 }
 
-#[derive(Debug, EnumDiscriminants)]
+#[derive(Debug, EnumDiscriminants, Picker)]
 #[strum_discriminants(derive(Display, VariantArray))]
 pub enum ElfSubrace {
     DarkElf, HighElf, WoodElf(Cantrip)
 }
 
-#[derive(Debug, EnumDiscriminants)]
+#[derive(Debug, EnumDiscriminants, Picker)]
 #[strum_discriminants(derive(Display, VariantArray))]
 pub enum Cantrip {
     Prestidigitation, Guidance
@@ -115,80 +116,6 @@ impl SheetBuilderCallbacks for SheetBuilderCallbacksImpl {
     } */
 }
 
-// ||||||||
-// || GENERATED BUILDERS ||
-// ||||||||||||||||||||||||
-
-#[derive(Default)]
-struct RaceBuilder {
-    race: Option<RaceDiscriminants>,
-    dwarf_builder: DwarfBuilder,
-    elf_builder: ElfBuilder,
-}
-
-impl RaceBuilder {
-    fn build(self) -> Race {
-        match self.race.expect("No race set in race builder.") {
-            RaceDiscriminants::Dwarf => self.dwarf_builder.build(),
-            RaceDiscriminants::Elf => self.elf_builder.build()
-        }
-    }
-}
-
-#[derive(Default)]
-struct DwarfBuilder {
-    subrace: Option<DwarfSubraceDiscriminants>,
-    tool_proficiency: Option<ToolProficiencyDiscriminants>,
-}
-
-impl DwarfBuilder {
-    pub fn build(self) -> Race {
-        let subrace = self.subrace.expect("No subrace set in dwarf builder.").into();
-        let tool_proficiency = self.tool_proficiency.expect("No tool proficiency set in dwarf builder.").into();
-        Race::Dwarf { subrace, tool_proficiency }
-    }
-}
-
-#[derive(Default)]
-struct ElfBuilder {
-    elf_subrace_builder: ElfSubraceBuilder
-}
-
-impl ElfBuilder {
-    pub fn build(self) -> Race {
-        let subrace = self.elf_subrace_builder.build();
-        Race::Elf { subrace }
-    }
-}
-
-#[derive(Default)]
-struct ElfSubraceBuilder {
-    elf_subrace: Option<ElfSubraceDiscriminants>,
-    wood_elf_builder: WoodElfBuilder
-}
-
-impl ElfSubraceBuilder {
-    pub fn build(self) -> ElfSubrace {
-        match self.elf_subrace.expect("No subrace set in elf subrace builder.") {
-            ElfSubraceDiscriminants::DarkElf => ElfSubraceDiscriminants::DarkElf.into(),
-            ElfSubraceDiscriminants::HighElf => ElfSubraceDiscriminants::HighElf.into(),
-            ElfSubraceDiscriminants::WoodElf => self.wood_elf_builder.build(),
-        }
-    }
-}
-
-#[derive(Default)]
-struct WoodElfBuilder {
-    cantrip: Option<CantripDiscriminants>
-}
-
-impl WoodElfBuilder {
-    pub fn build(self) -> ElfSubrace {
-        let cantrip = self.cantrip.expect("No cantrip set in wood elf builder.").into();
-        ElfSubrace::WoodElf(cantrip)
-    }
-}
-
 // ||||||||||||||||||||||||||||
 // || Picker Implementations ||
 // ||||||||||||||||||||||||||||
@@ -218,7 +145,7 @@ impl<'a, T: SheetBuilderCallbacks> DwarfSubracePicker for SheetBuilder<'a, T> {
 
 impl<'a, T: SheetBuilderCallbacks> ElfSubracePicker for SheetBuilder<'a, T> {
     fn fulfill(&mut self, requirement: &ElfSubraceDiscriminants) {
-        self.race_builder.elf_builder.elf_subrace_builder.elf_subrace = Some(requirement.clone());
+        self.race_builder.elf_builder.elfsubrace_builder.elfsubrace = Some(requirement.clone());
         match requirement {
             ElfSubraceDiscriminants::DarkElf => self.callbacks.pick_class(self),
             ElfSubraceDiscriminants::HighElf => self.callbacks.pick_class(self),
@@ -236,7 +163,7 @@ impl<'a, T: SheetBuilderCallbacks> ToolProficiencyPicker for SheetBuilder<'a, T>
 
 impl<'a, T: SheetBuilderCallbacks> CantripPicker for SheetBuilder<'a, T> {
     fn fulfill(&mut self, requirement: &CantripDiscriminants) {
-        self.race_builder.elf_builder.elf_subrace_builder.wood_elf_builder.cantrip = Some(requirement.clone());
+        self.race_builder.elf_builder.elfsubrace_builder.woodelf_builder.cantrip = Some(requirement.clone());
         self.callbacks.pick_class(self)
     }
 }
@@ -294,48 +221,6 @@ impl Into<Cantrip> for CantripDiscriminants {
 // ||||||||||
 // || GENERATED TRAITS ||
 // ||||||||||
-
-pub trait RacePicker {
-    fn options(&self) -> Vec<RaceDiscriminants> {
-        RaceDiscriminants::VARIANTS.to_vec()
-    }
-    fn fulfill(&mut self, requirement: &RaceDiscriminants);
-}
-
-pub trait ClassPicker {
-    fn options(&self) -> Vec<ClassDiscriminants> {
-        ClassDiscriminants::VARIANTS.to_vec()
-    }
-    fn fulfill(&mut self, requirement: &ClassDiscriminants);
-}
-
-pub trait DwarfSubracePicker {
-    fn options(&self) -> Vec<DwarfSubraceDiscriminants> {
-        DwarfSubraceDiscriminants::VARIANTS.to_vec()
-    }
-    fn fulfill(&mut self, requirement: &DwarfSubraceDiscriminants);
-}
-
-pub trait ElfSubracePicker {
-    fn options(&self) -> Vec<ElfSubraceDiscriminants> {
-        ElfSubraceDiscriminants::VARIANTS.to_vec()
-    }
-    fn fulfill(&mut self, requirement: &ElfSubraceDiscriminants);
-}
-
-pub trait ToolProficiencyPicker {
-    fn options(&self) -> Vec<ToolProficiencyDiscriminants> {
-        ToolProficiencyDiscriminants::VARIANTS.to_vec()
-    }
-    fn fulfill(&mut self, requirement: &ToolProficiencyDiscriminants);
-}
-
-pub trait CantripPicker {
-    fn options(&self) -> Vec<CantripDiscriminants> {
-        CantripDiscriminants::VARIANTS.to_vec()
-    }
-    fn fulfill(&mut self, requirement: &CantripDiscriminants);
-}
 
 pub trait SheetBuilderCallbacks {
     fn pick_race(&self, picker: &mut impl RacePicker) {
