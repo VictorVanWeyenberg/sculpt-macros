@@ -15,7 +15,7 @@ fn it_works() {
 struct Sheet {
     #[sculptable]
     race: Race,
-    class: Class
+    class: Class,
 }
 
 #[derive(Debug, EnumDiscriminants, Picker)]
@@ -23,7 +23,7 @@ struct Sheet {
 pub enum Race {
     Dwarf {
         subrace: DwarfSubrace,
-        tool_proficiency: ToolProficiency
+        tool_proficiency: ToolProficiency,
     },
     Elf {
         #[sculptable]
@@ -34,25 +34,25 @@ pub enum Race {
 #[derive(Debug, EnumDiscriminants, Picker)]
 #[strum_discriminants(derive(Display, VariantArray))]
 pub enum Class {
-    Bard, Paladin
+    Bard, Paladin,
 }
 
 #[derive(Debug, EnumDiscriminants, Picker)]
 #[strum_discriminants(derive(Display, VariantArray))]
 pub enum DwarfSubrace {
-    HillDwarf, MountainDwarf
+    HillDwarf, MountainDwarf,
 }
 
 #[derive(Debug, EnumDiscriminants, Picker)]
 #[strum_discriminants(derive(Display, VariantArray))]
 pub enum ToolProficiency {
-    Hammer, Saw
+    Hammer, Saw,
 }
 
 #[derive(Debug, EnumDiscriminants, Picker)]
 #[strum_discriminants(derive(Display, VariantArray))]
 pub enum ElfSubrace {
-    DarkElf, HighElf, WoodElf(Cantrip)
+    DarkElf, HighElf, WoodElf(Cantrip),
 }
 
 #[derive(Debug, EnumDiscriminants, Picker)]

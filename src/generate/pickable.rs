@@ -130,13 +130,6 @@ impl PickableOption {
         }
     }
 
-    fn is_struct(&self) -> bool {
-        if let PickableOption::Struct { .. } = self {
-            return true;
-        }
-        false
-    }
-
     fn is_sculptable(&self) -> bool {
         match self {
             PickableOption::Struct { .. } => true,
@@ -158,7 +151,7 @@ impl PickableOption {
     }
 
     fn to_pickable_builder_field(&self) -> Option<proc_macro2::TokenStream> {
-        if !(self.is_sculptable()) {
+        if !self.is_sculptable() {
             return None;
         }
         let builder_field = format_builder_field_name(self.name());
@@ -252,14 +245,12 @@ impl PickableOption {
             }
             PickableOption::Raw { .. } => {
                 quote! {
-                    #enum_type_ident::#enum_type { #(#fields,)* }
+                    panic!("Generating constructor arguments for RAW enum type.")
                 }
             }
         }
     }
 }
-
-
 
 pub fn build_pickable(pickable_ident: Ident, pickable_enum: DataEnum) -> Pickable {
     let mut pickable = Pickable::new(pickable_ident.to_string());
@@ -273,11 +264,11 @@ fn variant_to_pickable_option(variant: Variant) -> PickableOption {
     let name = variant.ident.to_string();
     let (mut option, variant_fields) = match variant.fields {
         Fields::Named(struct_fields) => {
-            let mut option = PickableOption::new_struct(name);
+            let option = PickableOption::new_struct(name);
             (option, struct_fields.named)
         }
         Fields::Unnamed(tuple_fields) => {
-            let mut option = PickableOption::new_tuple(name);
+            let option = PickableOption::new_tuple(name);
             (option, tuple_fields.unnamed)
         }
         Fields::Unit => return PickableOption::new_raw(name)
@@ -286,10 +277,6 @@ fn variant_to_pickable_option(variant: Variant) -> PickableOption {
         .map(variant_field_to_field)
         .for_each(|f| option.add_field(f));
     option
-}
-
-fn variant_has_sculptable_attribute(variant: &Variant) -> bool {
-    variant.attrs.iter().any(|attr| attr.path().get_ident().unwrap().to_string() == "sculptable")
 }
 
 fn variant_field_to_field(field: &syn::Field) -> Field {

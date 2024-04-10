@@ -14,7 +14,7 @@ pub fn derive_root_builder(input: TokenStream) -> TokenStream {
         Data::Enum(_) | Data::Union(_) => panic!("Deriving Sculptor is only supported for structs."),
     };
     let sculptable = build_sculptable(name, data_struct, true);
-    derive_builder_from_sculptable(sculptable)
+    sculptable.generate().into()
 }
 
 #[proc_macro_derive(Picker, attributes(sculptable))]
