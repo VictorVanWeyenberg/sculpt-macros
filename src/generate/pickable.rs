@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 
 use proc_macro2::Ident;
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::{DataEnum, Fields, Type, Variant};
 
 use crate::generate::{Field, field_has_sculpt_attribute, format_builder_field_name, format_builder_type, format_option_field, format_options_type, format_picker_name, format_type};
@@ -24,6 +24,7 @@ impl Pickable {
         let picker_trait = self.generate_picker_trait();
         let pickable_builder = self.generate_pickable_builder();
         let builder_impl = self.impl_pickable_builder();
+        let options_enum = self.generate_options_enum();
         let variant_builders: Vec<proc_macro2::TokenStream> = self.options.into_iter()
             .map(|po| po.generate_variant_builder_and_impl(format_type(&self.name)))
             .collect();
@@ -32,6 +33,7 @@ impl Pickable {
             #pickable_builder
             #builder_impl
             #(#variant_builders)*
+            #options_enum
         };
         gen.into()
     }
@@ -82,6 +84,28 @@ impl Pickable {
                         #(#pickable_builder_build_calls,)*
                     }
                 }
+            }
+        }
+    }
+
+    fn generate_options_enum(&self) -> proc_macro2::TokenStream {
+        let options_type = format_options_type(&self.name);
+        let options: Vec<Ident> = self.options.iter()
+            .map(|o| o.to_option_ident())
+            .collect();
+        let variants: Vec<proc_macro2::TokenStream> = options.iter()
+            .map(|o| quote!(#options_type::#o))
+            .collect();
+        quote! {
+            #[derive(Clone, Copy)]
+            enum #options_type {
+                #(#options,)*
+            }
+
+            impl #options_type {
+                const VARIANTS: &'static [Self] = &[
+                    #(#variants,)*
+                ];
             }
         }
     }
@@ -249,6 +273,15 @@ impl PickableOption {
                 }
             }
         }
+    }
+
+    fn to_option_ident(&self) -> Ident {
+        let name = match self {
+            PickableOption::Struct { name, .. } => name,
+            PickableOption::Tuple { name, .. } => name,
+            PickableOption::Raw { name, .. } => name,
+        };
+        format_ident!("{}", name)
     }
 }
 

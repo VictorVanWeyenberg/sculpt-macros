@@ -1,7 +1,5 @@
 use std::fmt::Display;
 use std::io::Write;
-use strum::VariantArray;
-use strum_macros::{Display, EnumDiscriminants, VariantArray};
 use sculpt::{Picker, Sculptor};
 
 #[test]
@@ -18,8 +16,7 @@ struct Sheet {
     class: Class,
 }
 
-#[derive(Debug, EnumDiscriminants, Picker)]
-#[strum_discriminants(derive(Display, VariantArray))]
+#[derive(Debug, Picker)]
 pub enum Race {
     Dwarf {
         subrace: DwarfSubrace,
@@ -31,32 +28,27 @@ pub enum Race {
     }
 }
 
-#[derive(Debug, EnumDiscriminants, Picker)]
-#[strum_discriminants(derive(Display, VariantArray))]
+#[derive(Debug, Picker)]
 pub enum Class {
     Bard, Paladin,
 }
 
-#[derive(Debug, EnumDiscriminants, Picker)]
-#[strum_discriminants(derive(Display, VariantArray))]
+#[derive(Debug, Picker)]
 pub enum DwarfSubrace {
     HillDwarf, MountainDwarf,
 }
 
-#[derive(Debug, EnumDiscriminants, Picker)]
-#[strum_discriminants(derive(Display, VariantArray))]
+#[derive(Debug, Picker)]
 pub enum ToolProficiency {
     Hammer, Saw,
 }
 
-#[derive(Debug, EnumDiscriminants, Picker)]
-#[strum_discriminants(derive(Display, VariantArray))]
+#[derive(Debug, Picker)]
 pub enum ElfSubrace {
     DarkElf, HighElf, WoodElf(Cantrip),
 }
 
-#[derive(Debug, EnumDiscriminants, Picker)]
-#[strum_discriminants(derive(Display, VariantArray))]
+#[derive(Debug, Picker)]
 pub enum Cantrip {
     Prestidigitation, Guidance
 }
