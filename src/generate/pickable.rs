@@ -89,6 +89,7 @@ impl Pickable {
     }
 
     fn generate_options_enum(&self) -> proc_macro2::TokenStream {
+        let self_type = format_type(&self.name);
         let options_type = format_options_type(&self.name);
         let options: Vec<Ident> = self.options.iter()
             .map(|o| o.to_option_ident())
@@ -96,6 +97,18 @@ impl Pickable {
         let variants: Vec<proc_macro2::TokenStream> = options.iter()
             .map(|o| quote!(#options_type::#o))
             .collect();
+        let conversions: Vec<proc_macro2::TokenStream> = self.options.iter()
+            .map(|o| {
+                if o.is_sculptable() {
+                    let option = format_type(o.name());
+                    let message = stringify!(
+                        Cannot turn #options_type::#option into #self_type without dependencies.);
+                    quote!(#options_type::#option => panic!(#message))
+                } else {
+                    let option = format_type(o.name());
+                    quote!(#options_type::#option => #self_type::#option)
+                }
+            }).collect();
         quote! {
             #[derive(Clone, Copy)]
             enum #options_type {
@@ -106,6 +119,14 @@ impl Pickable {
                 const VARIANTS: &'static [Self] = &[
                     #(#variants,)*
                 ];
+            }
+
+            impl Into<#self_type> for #options_type {
+                fn into(self) -> #self_type {
+                    match self {
+                        #(#conversions,)*
+                    }
+                }
             }
         }
     }
