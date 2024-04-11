@@ -1,6 +1,6 @@
 use proc_macro2::Ident;
 use quote::{format_ident, quote};
-use crate::generate::{format_builder_field_name, format_builder_type, format_options_type};
+use crate::generate::format::SculptFormatter;
 
 pub struct Field {
     name: Option<String>,
@@ -18,15 +18,16 @@ impl Field {
     }
 
     pub fn to_builder_field(&self) -> proc_macro2::TokenStream {
+        let type_formatter: SculptFormatter = self.type_name.clone().into();
         if self.sculpt {
-            let builder_field = format_builder_field_name(&self.type_name);
-            let builder_type = format_builder_type(&self.type_name);
+            let builder_field = type_formatter.format_builder_field_name();
+            let builder_type = type_formatter.format_builder_type();
             quote! {
                 #builder_field: #builder_type
             }
         } else {
             let option_field = self.format_field_name();
-            let option_type = format_options_type(&self.type_name);
+            let option_type = type_formatter.format_options_type();
             quote! {
                 #option_field: Option<#option_type>
             }
@@ -46,8 +47,9 @@ impl Field {
 
     pub fn to_builder_call(&self, builder_type: &Ident) -> proc_macro2::TokenStream {
         let variable = self.format_field_name();
+        let type_formatter: SculptFormatter = self.type_name.clone().into();
         if self.sculpt {
-            let builder_field = format_builder_field_name(&self.type_name);
+            let builder_field = type_formatter.format_builder_field_name();
             quote! {
                 let #variable = self.#builder_field.build()
             }
