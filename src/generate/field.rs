@@ -1,6 +1,6 @@
+use crate::generate::format::SculptFormatter;
 use proc_macro2::Ident;
 use quote::{format_ident, quote};
-use crate::generate::format::SculptFormatter;
 
 pub struct Field {
     name: Option<String>,
@@ -10,11 +10,19 @@ pub struct Field {
 
 impl Field {
     pub fn pick(name: Option<String>, type_name: String) -> Self {
-        Self { name, type_name, sculpt: false }
+        Self {
+            name,
+            type_name,
+            sculpt: false,
+        }
     }
 
     pub fn sculpt(name: Option<String>, type_name: String) -> Self {
-        Self { name, type_name, sculpt: true }
+        Self {
+            name,
+            type_name,
+            sculpt: true,
+        }
     }
 
     pub fn to_builder_field(&self) -> proc_macro2::TokenStream {
@@ -62,7 +70,10 @@ impl Field {
     }
 
     pub fn format_field_name(&self) -> Ident {
-        format_ident!("{v}", v = self.name.as_ref().unwrap_or(&self.type_name).to_lowercase())
+        format_ident!(
+            "{v}",
+            v = self.name.as_ref().unwrap_or(&self.type_name).to_lowercase()
+        )
     }
 
     pub fn format_type(&self) -> Ident {

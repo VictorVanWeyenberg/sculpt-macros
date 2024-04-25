@@ -10,3 +10,10 @@ proc-macro = true
 syn = "~2"
 quote = "~1"
 proc-macro2 = "~1"
+regex = "1.10.4"
+
+[build-dependencies]
+syn = { version = "~2", features = ["full", "extra-traits"] }
+quote = "~1"
+proc-macro2 = "~1"
+rust-format = "0.3.4"
