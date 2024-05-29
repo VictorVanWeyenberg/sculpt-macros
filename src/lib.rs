@@ -5,7 +5,6 @@ use syn::{Data, DeriveInput};
 use macros::*;
 
 mod macros;
-mod build;
 
 #[proc_macro_derive(Sculptor, attributes(sculptable))]
 pub fn derive_root_builder(input: TokenStream) -> TokenStream {
