@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use sculpt::{Picker, Sculptor};
 
-include!(concat!(env!("OUT_DIR"), "/tests/sculpt_generated.rs"));
+include!(concat!(env!("OUT_DIR"), "/tests/test.rs"));
 
 #[test]
 fn it_works() {
@@ -64,59 +64,3 @@ pub enum Cantrip {
 struct SheetBuilderCallbacksImpl();
 
 impl SheetBuilderCallbacks for SheetBuilderCallbacksImpl {}
-
-// ||||||||||||||||||||||||||||
-// || Picker Implementations ||
-// ||||||||||||||||||||||||||||
-
-impl<'a, T: SheetBuilderCallbacks> RacePicker for SheetBuilder<'a, T> {
-    fn fulfill(&mut self, requirement: &RaceDiscriminants) {
-        self.race_builder.race = Some(requirement.clone());
-        match requirement {
-            RaceDiscriminants::Dwarf => self.callbacks.pick_dwarfsubrace(self),
-            RaceDiscriminants::Elf => self.callbacks.pick_elfsubrace(self),
-        }
-    }
-}
-
-impl<'a, T: SheetBuilderCallbacks> ClassPicker for SheetBuilder<'a, T> {
-    fn fulfill(&mut self, requirement: &ClassDiscriminants) {
-        self.class = Some(requirement.clone());
-    }
-}
-
-impl<'a, T: SheetBuilderCallbacks> DwarfSubracePicker for SheetBuilder<'a, T> {
-    fn fulfill(&mut self, requirement: &DwarfSubraceDiscriminants) {
-        self.race_builder.dwarf_builder.subrace = Some(requirement.clone());
-        self.callbacks.pick_toolproficiency(self)
-    }
-}
-
-impl<'a, T: SheetBuilderCallbacks> ElfSubracePicker for SheetBuilder<'a, T> {
-    fn fulfill(&mut self, requirement: &ElfSubraceDiscriminants) {
-        self.race_builder.elf_builder.elfsubrace_builder.elfsubrace = Some(requirement.clone());
-        match requirement {
-            ElfSubraceDiscriminants::DarkElf => self.callbacks.pick_class(self),
-            ElfSubraceDiscriminants::HighElf => self.callbacks.pick_class(self),
-            ElfSubraceDiscriminants::WoodElf => self.callbacks.pick_cantrip(self),
-        }
-    }
-}
-
-impl<'a, T: SheetBuilderCallbacks> ToolProficiencyPicker for SheetBuilder<'a, T> {
-    fn fulfill(&mut self, requirement: &ToolProficiencyDiscriminants) {
-        self.race_builder.dwarf_builder.tool_proficiency = Some(requirement.clone());
-        self.callbacks.pick_class(self)
-    }
-}
-
-impl<'a, T: SheetBuilderCallbacks> CantripPicker for SheetBuilder<'a, T> {
-    fn fulfill(&mut self, requirement: &CantripDiscriminants) {
-        self.race_builder
-            .elf_builder
-            .elfsubrace_builder
-            .woodelf_builder
-            .cantrip = Some(requirement.clone());
-        self.callbacks.pick_class(self)
-    }
-}

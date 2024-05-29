@@ -2,9 +2,10 @@ use proc_macro::TokenStream;
 
 use syn::{Data, DeriveInput};
 
-use generate::*;
+use macros::*;
 
-mod generate;
+mod macros;
+mod build;
 
 #[proc_macro_derive(Sculptor, attributes(sculptable))]
 pub fn derive_root_builder(input: TokenStream) -> TokenStream {

@@ -2,7 +2,7 @@ use proc_macro2::Ident;
 use quote::{format_ident, quote};
 use syn::{DataStruct, Fields, Type};
 
-use crate::generate::{field_has_sculpt_attribute, Field};
+use crate::macros::{field_has_sculpt_attribute, Field};
 
 pub struct SculptableStruct {
     pub root: bool,

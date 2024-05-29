@@ -1,4 +1,4 @@
-use crate::generate::format::SculptFormatter;
+use crate::macros::format::SculptFormatter;
 use proc_macro2::Ident;
 use quote::{format_ident, quote};
 

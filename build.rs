@@ -1,14 +1,16 @@
+use std::{env, fs};
+use std::collections::HashMap;
 use std::fmt::Debug;
-use std::fs;
-use std::fs::{File, ReadDir};
+use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use proc_macro2::TokenTree;
-use quote::{format_ident, quote, ToTokens};
+use itertools::Itertools;
+use proc_macro2::{Ident, TokenStream, TokenTree};
+use quote::{format_ident, quote};
 use rust_format::{Formatter, RustFmt};
-use syn::{ItemEnum, Type};
+use syn::{Attribute, Field, Fields, Item, ItemEnum, ItemStruct, Type, Variant};
 
 const OPTIONS: &str = "Discriminants";
 
@@ -26,9 +28,9 @@ impl DependencyTree {
         DependencyTree { nodes }
     }
 
-    fn find_node(&self, d_type: &syn::Type) -> &DependencyNode {
+    fn find_node(&self, d_type: &Type) -> &DependencyNode {
         match d_type {
-            syn::Type::Path(type_path) => self
+            Type::Path(type_path) => self
                 .nodes
                 .iter()
                 .find(|dn| dn.name == *type_path.path.get_ident().unwrap())
@@ -53,13 +55,13 @@ impl DependencyTree {
 
 #[derive(Debug)]
 struct DependencyNode {
-    name: syn::Ident,
+    name: Ident,
     d_type: DependencyType,
     formatter: IdentFormatter,
 }
 
 impl DependencyNode {
-    fn new(name: syn::Ident, d_type: DependencyType) -> DependencyNode {
+    fn new(name: Ident, d_type: DependencyType) -> DependencyNode {
         let formatter = IdentFormatter(name.clone());
         DependencyNode {
             name,
@@ -68,7 +70,7 @@ impl DependencyNode {
         }
     }
 
-    fn generate_picker_method(&self) -> Option<proc_macro2::TokenStream> {
+    fn generate_picker_method(&self) -> Option<TokenStream> {
         if !self.d_type.is_pickable() {
             return None;
         }
@@ -84,26 +86,26 @@ impl DependencyNode {
 }
 
 #[derive(Debug)]
-struct IdentFormatter(syn::Ident);
+struct IdentFormatter(Ident);
 
 impl IdentFormatter {
-    fn ident_builder_callbacks(&self) -> syn::Ident {
+    fn ident_builder_callbacks(&self) -> Ident {
         format_ident!("{}BuilderCallbacks", self.0)
     }
 
-    fn pick_method(&self) -> syn::Ident {
+    fn pick_method(&self) -> Ident {
         format_ident!("pick_{}", self.0.to_string().to_lowercase())
     }
 
-    fn picker_trait(&self) -> syn::Ident {
+    fn picker_trait(&self) -> Ident {
         format_ident!("{}Picker", self.0)
     }
 
-    fn ident_builder(&self) -> syn::Ident {
+    fn ident_builder(&self) -> Ident {
         format_ident!("{}Builder", self.0)
     }
 
-    fn options_enum(&self) -> syn::Ident {
+    fn options_enum(&self) -> Ident {
         format_ident!("{}{}", self.0, OPTIONS)
     }
 }
@@ -115,7 +117,7 @@ enum DependencyType {
         is_root: bool,
     },
     Tuple {
-        types: Vec<syn::Type>,
+        types: Vec<Type>,
     },
     Enum {
         variants: Vec<EnumVariantType>,
@@ -128,14 +130,14 @@ impl DependencyType {
         DependencyType::Struct { fields, is_root }
     }
 
-    fn new_tuple(types: Vec<syn::Type>) -> DependencyType {
+    fn new_tuple(types: Vec<Type>) -> DependencyType {
         DependencyType::Tuple { types }
     }
 
     fn new_enum(variants: Vec<EnumVariantType>, is_pickable: bool) -> DependencyType {
         DependencyType::Enum {
             variants,
-            is_pickable
+            is_pickable,
         }
     }
 
@@ -158,17 +160,17 @@ impl DependencyType {
 
 #[derive(Debug)]
 struct StructField {
-    name: syn::Ident,
-    s_type: Rc<syn::Type>,
+    name: Ident,
+    s_type: Rc<Type>,
     is_sculptable: bool,
 }
 
 impl StructField {
-    fn new(name: syn::Ident, s_type: syn::Type, is_sculptable: bool) -> StructField {
+    fn new(name: Ident, s_type: Type, is_sculptable: bool) -> StructField {
         StructField {
             name,
             s_type: Rc::new(s_type),
-            is_sculptable
+            is_sculptable,
         }
     }
 }
@@ -176,32 +178,32 @@ impl StructField {
 #[derive(Debug)]
 enum EnumVariantType {
     Struct {
-        name: syn::Ident,
+        name: Ident,
         fields: Vec<StructField>,
     },
     Tuple {
-        name: syn::Ident,
-        types: Vec<syn::Type>,
+        name: Ident,
+        types: Vec<Type>,
     },
     Raw {
-        name: syn::Ident,
+        name: Ident,
     },
 }
 
 impl EnumVariantType {
-    fn new_struct(name: syn::Ident, fields: Vec<StructField>) -> EnumVariantType {
+    fn new_struct(name: Ident, fields: Vec<StructField>) -> EnumVariantType {
         EnumVariantType::Struct { name, fields }
     }
 
-    fn new_tuple(name: syn::Ident, types: Vec<syn::Type>) -> EnumVariantType {
+    fn new_tuple(name: Ident, types: Vec<Type>) -> EnumVariantType {
         EnumVariantType::Tuple { name, types }
     }
 
-    fn new_raw(name: syn::Ident) -> EnumVariantType {
+    fn new_raw(name: Ident) -> EnumVariantType {
         EnumVariantType::Raw { name }
     }
 
-    fn name(&self) -> &syn::Ident {
+    fn name(&self) -> &Ident {
         match self {
             EnumVariantType::Struct { name, .. } => name,
             EnumVariantType::Tuple { name, .. } => name,
@@ -215,75 +217,56 @@ impl EnumVariantType {
 // =================================================================================================
 
 fn main() {
-    let project_root_dir = env!("CARGO_MANIFEST_DIR");
-    let sources = Path::new(project_root_dir).join("src").to_path_buf();
-    let tests = Path::new(project_root_dir).join("tests").to_path_buf();
-    let out_dir = &std::env::var("OUT_DIR").expect("Cannot find out_dir.");
-    let out_sources = Path::new(out_dir)
-        .join("src")
-        .join("sculpt_generated.rs")
-        .to_path_buf();
-    let out_tests = Path::new(out_dir)
-        .join("tests")
-        .join("sculpt_generated.rs")
-        .to_path_buf();
-    read_dir(sources)
+    vec!["tests/test.rs"]
         .into_iter()
-        .map(to_ast)
-        .map(to_dependency_tree)
-        .for_each(|dt| dt.generate(&out_sources));
-    read_dir(tests)
-        .into_iter()
-        .map(to_ast)
-        .map(to_dependency_tree)
-        .for_each(|dt| dt.generate(&out_tests));
+        .map(Path::new)
+        .map(Path::to_path_buf)
+        .for_each(build)
 }
 
-fn read_dir(dir: PathBuf) -> Vec<PathBuf> {
-    let mut rust_files = vec![];
-    match fs::read_dir(dir) {
-        Ok(read_dir) => rust_files.extend(read_dir_entries(read_dir)),
-        Err(_) => {}
+fn build(path: PathBuf) {
+    let root_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let out_dir = env::var("OUT_DIR").expect("Cannot find out_dir.");
+    let out_dir = Path::new(&out_dir);
+    let source = root_dir.join(&path);
+    let destination = out_dir.join(&path);
+    let ast = to_ast(&source);
+    let dt = to_dependency_tree(ast.clone());
+    let dt_tokens = match dt.generate() {
+        Ok(tokens) => tokens,
+        Err(err) => panic!("Error while building sculptor traits \"{}\" for file {:?}.", err, &source)
+    };
+    let tl_tokens = to_type_linker(ast).extrapolate();
+    let tokens = quote! {
+                #dt_tokens
+
+                #(#tl_tokens )*
+            };
+    write_token_stream_to_file(tokens, destination);
+}
+
+fn write_token_stream_to_file(tokens: TokenStream, path: PathBuf) {
+    let code = format!("{}", tokens);
+    let code = RustFmt::default().format_str(code).unwrap();
+    let parent = path.parent().unwrap();
+    fs::create_dir_all(parent).unwrap();
+    match File::create(path) {
+        Ok(mut file) => file.write_all(code.as_bytes()).unwrap(),
+        Err(error) => println!("{}", error),
     }
-    rust_files
-}
-
-fn read_dir_entries(entries: ReadDir) -> Vec<PathBuf> {
-    let mut rust_files = vec![];
-    entries
-        .filter_map(|res| res.ok())
-        .map(|dir_entry| dir_entry.path())
-        .for_each(|p| rust_files.extend(read_path(p)));
-    rust_files
-}
-
-fn read_path(path: PathBuf) -> Vec<PathBuf> {
-    let mut rust_files = vec![];
-    if path.is_dir() {
-        rust_files.extend(read_dir(path))
-    } else if path.is_file() {
-        match path.extension() {
-            None => {}
-            Some(extension) => {
-                if "rs" == extension {
-                    rust_files.push(path)
-                }
-            }
-        }
-    }
-    rust_files
 }
 
 // =================================================================================================
 // Conversion to Dependency Tree
 // =================================================================================================
 
-fn to_ast(path: PathBuf) -> syn::File {
-    let mut file = fs::File::open(&path).expect(&format!("Cannot open file. {:?}", path));
+fn to_ast(path: &PathBuf) -> syn::File {
+    let mut file = File::open(&path).expect(&format!("Cannot open file. {:?}", path));
     let mut content = String::new();
     file.read_to_string(&mut content)
         .expect(&format!("Cannot read contents. {:?}", path));
-    syn::parse_file(&content).expect(&format!("Cannot parse file. {:?}", path))
+    let file = syn::parse_file(&content).expect(&format!("Cannot parse file. {:?}", path));
+    file
 }
 
 fn to_dependency_tree(ast: syn::File) -> DependencyTree {
@@ -297,34 +280,56 @@ fn to_dependency_tree(ast: syn::File) -> DependencyTree {
     DependencyTree::new(nodes)
 }
 
-fn to_dependency_node(item: syn::Item) -> Option<DependencyNode> {
+fn to_dependency_node(item: Item) -> Option<DependencyNode> {
     match item {
-        syn::Item::Enum(item_enum) => Some(to_enum_dependency_node(item_enum)),
-        syn::Item::Struct(item_struct) => Some(to_struct_dependency_node(item_struct)),
+        Item::Enum(item_enum) => Some(to_enum_dependency_node(item_enum)),
+        Item::Struct(item_struct) => Some(to_struct_dependency_node(item_struct)),
         _ => None,
     }
 }
 
-fn is_item_enum_picker(item_enum: &syn::ItemEnum) -> bool {
+fn is_item_enum_picker(item_enum: &ItemEnum) -> bool {
     for attr in &item_enum.attrs {
-        if attr.path().is_ident("derive") {
-            if let Some(meta_list) = attr.meta.require_list().ok() {
-                if meta_list.tokens.clone().into_iter().any(|tree| {
-                    if let TokenTree::Ident(ident) = tree {
-                        ident == "Picker"
-                    } else {
-                        false
-                    }
-                }) {
-                    return true;
-                }
-            }
+        if attribute_is_derive(attr, "Picker") {
+            return true;
         }
     }
     false
 }
 
-fn to_enum_dependency_node(item_enum: syn::ItemEnum) -> DependencyNode {
+fn is_item_struct_root(item_struct: &ItemStruct) -> bool {
+    for attr in &item_struct.attrs {
+        if attribute_is_derive(attr, "Sculptor") {
+            return true;
+        }
+    }
+    false
+}
+
+fn attribute_is_derive(attr: &Attribute, derived: &str) -> bool {
+    if attr.path().is_ident("derive") {
+        match attr.meta.require_list() {
+            Ok(meta_list) => {
+                for tree in meta_list.clone().tokens {
+                    match tree {
+                        TokenTree::Ident(ident) => {
+                            if ident == derived {
+                                return true;
+                            }
+                        }
+                        _ => continue
+                    }
+                }
+                false
+            }
+            Err(_) => false
+        }
+    } else {
+        false
+    }
+}
+
+fn to_enum_dependency_node(item_enum: ItemEnum) -> DependencyNode {
     let is_pickable = is_item_enum_picker(&item_enum);
     let variants: Vec<EnumVariantType> = item_enum
         .variants
@@ -335,9 +340,9 @@ fn to_enum_dependency_node(item_enum: syn::ItemEnum) -> DependencyNode {
     DependencyNode::new(item_enum.ident, d_type)
 }
 
-fn to_enum_variant_type(variant: syn::Variant) -> EnumVariantType {
+fn to_enum_variant_type(variant: Variant) -> EnumVariantType {
     match variant.fields {
-        syn::Fields::Named(named_fields) => {
+        Fields::Named(named_fields) => {
             let fields: Vec<StructField> = named_fields
                 .named
                 .into_iter()
@@ -345,15 +350,15 @@ fn to_enum_variant_type(variant: syn::Variant) -> EnumVariantType {
                 .collect();
             EnumVariantType::new_struct(variant.ident, fields)
         }
-        syn::Fields::Unnamed(unnamed_fields) => {
-            let types: Vec<syn::Type> = unnamed_fields.unnamed.into_iter().map(|f| f.ty).collect();
+        Fields::Unnamed(unnamed_fields) => {
+            let types: Vec<Type> = unnamed_fields.unnamed.into_iter().map(|f| f.ty).collect();
             EnumVariantType::new_tuple(variant.ident, types)
         }
-        syn::Fields::Unit => EnumVariantType::new_raw(variant.ident),
+        Fields::Unit => EnumVariantType::new_raw(variant.ident),
     }
 }
 
-fn to_struct_field(field: syn::Field) -> StructField {
+fn to_struct_field(field: Field) -> StructField {
     let is_sculptable = field
         .attrs
         .iter()
@@ -361,29 +366,10 @@ fn to_struct_field(field: syn::Field) -> StructField {
     StructField::new(field.ident.unwrap(), field.ty, is_sculptable)
 }
 
-fn is_item_struct_root(item_struct: &syn::ItemStruct) -> bool {
-    for attr in &item_struct.attrs {
-        if attr.path().is_ident("derive") {
-            if let Some(meta_list) = attr.meta.require_list().ok() {
-                if meta_list.tokens.clone().into_iter().any(|tree| {
-                    if let TokenTree::Ident(ident) = tree {
-                        ident == "Sculptor"
-                    } else {
-                        false
-                    }
-                }) {
-                    return true;
-                }
-            }
-        }
-    }
-    false
-}
-
-fn to_struct_dependency_node(item_struct: syn::ItemStruct) -> DependencyNode {
+fn to_struct_dependency_node(item_struct: ItemStruct) -> DependencyNode {
     let is_root = is_item_struct_root(&item_struct);
     let d_type = match item_struct.fields {
-        syn::Fields::Named(named_fields) => {
+        Fields::Named(named_fields) => {
             let fields: Vec<StructField> = named_fields
                 .named
                 .into_iter()
@@ -391,15 +377,15 @@ fn to_struct_dependency_node(item_struct: syn::ItemStruct) -> DependencyNode {
                 .collect();
             DependencyType::new_struct(fields, is_root)
         }
-        syn::Fields::Unnamed(unnamed_fields) => {
-            let types: Vec<syn::Type> = unnamed_fields
+        Fields::Unnamed(unnamed_fields) => {
+            let types: Vec<Type> = unnamed_fields
                 .unnamed
                 .into_iter()
                 .map(|field| field.ty)
                 .collect();
             DependencyType::new_tuple(types)
         }
-        syn::Fields::Unit => panic!("Struct field turns out to be unit!"),
+        Fields::Unit => panic!("Struct field turns out to be unit!"),
     };
     DependencyNode::new(item_struct.ident, d_type)
 }
@@ -409,26 +395,19 @@ fn to_struct_dependency_node(item_struct: syn::ItemStruct) -> DependencyNode {
 // =================================================================================================
 
 impl DependencyTree {
-    fn generate(self, out_file: &PathBuf) {
-        if let Some(root_node) = self.find_root() {
-            let callbacks_trait = self.generate_callbacks_trait();
-            // let picker_implementations = self.generate_picker_implementations(root_node);
-            let gen = quote! {
-                #callbacks_trait
-                // #(#picker_implementations)*
-            };
-            let code = format!("{}", gen);
-            let code = RustFmt::default().format_str(code).unwrap();
-            let parent = out_file.parent().unwrap();
-            fs::create_dir_all(parent).unwrap();
-            match File::create(out_file) {
-                Ok(mut file) => file.write_all(code.as_bytes()).unwrap(),
-                Err(error) => println!("{}", error),
+    fn generate(self) -> Result<TokenStream, String> {
+        match self.find_root() {
+            None => Err("No root sculptor found.".to_string()),
+            Some(_) => {
+                let callbacks_trait = self.generate_callbacks_trait();
+                Ok(quote! {
+                    #callbacks_trait
+                })
             }
         }
     }
 
-    fn generate_callbacks_trait(&self) -> proc_macro2::TokenStream {
+    fn generate_callbacks_trait(&self) -> TokenStream {
         let builder_callbacks_trait_name = self
             .find_root()
             .unwrap()
@@ -442,72 +421,12 @@ impl DependencyTree {
         }
     }
 
-    fn generate_pick_methods(&self) -> Vec<proc_macro2::TokenStream> {
+    fn generate_pick_methods(&self) -> Vec<TokenStream> {
         self.nodes
             .iter()
             .map(|node| node.generate_picker_method())
             .filter_map(|node| node)
             .collect()
-    }
-
-    fn generate_picker_implementations(&self, root_node: &DependencyNode) -> Vec<proc_macro2::TokenStream> {
-        self.nodes.iter().filter(|node| node.d_type.is_pickable())
-            .map(|node| self.generate_picker_implementation(root_node, node))
-            .collect()
-    }
-
-    fn generate_picker_implementation(&self, root_node: &DependencyNode, node: &DependencyNode) -> proc_macro2::TokenStream {
-        let root_callbacks_trait = root_node.formatter.ident_builder_callbacks();
-        let node_picker = node.formatter.picker_trait();
-        let root_builder = root_node.formatter.ident_builder();
-        let node_options_enum = node.formatter.options_enum();
-        let option_pick_next_calls: Vec<proc_macro2::TokenStream> =
-            if let DependencyType::Enum { is_pickable: true, variants, .. } = &node.d_type {
-                variants.iter()
-                    .map(|variant| self.variant_to_pick_next_call(root_node, node, variant))
-                    .collect()
-            } else {
-                panic!("Trying to generate picker implementation of a dependency type that's not an enum.");
-            };
-        quote! {
-            impl<'a, T: #root_callbacks_trait> #node_picker for #root_builder<'a, T> {
-                fn fulfill(&mut self, requirement: &#node_options_enum) {
-                    self.race_builder.race = Some(requirement.clone()); // <-- Can you see the error? :p
-                    match requirement {
-                        #(#option_pick_next_calls,)*
-                    }
-                }
-            }
-        }
-    }
-
-    fn variant_to_pick_next_call(&self, root_node: &DependencyNode, node: &DependencyNode, variant: &EnumVariantType) -> proc_macro2::TokenStream {
-        let node_options_enum = node.formatter.options_enum();
-        let variant_name = variant.name();
-        let next_pick_call = self.generate_next_pick_call(root_node, node, variant);
-        quote! {
-             #node_options_enum::#variant_name => self.callbacks.#next_pick_call(self)
-        }
-    }
-
-    fn generate_next_pick_call(&self, root_node: &DependencyNode, node: &DependencyNode, variant: &EnumVariantType) -> proc_macro2::TokenStream {
-        match variant {
-            EnumVariantType::Struct { fields, .. } => {
-                let first_type = &fields.first().unwrap().s_type;
-                let next_node = self.find_node(first_type);
-                let next_pick_method = next_node.formatter.pick_method();
-                quote!(#next_pick_method)
-            }
-            EnumVariantType::Tuple { types, .. } => {
-                let first_type = &types.first().unwrap();
-                let next_node = self.find_node(first_type);
-                let next_pick_method = next_node.formatter.pick_method();
-                quote!(#next_pick_method)
-            }
-            EnumVariantType::Raw { name } => {
-                quote!(pick_race)
-            }
-        }
     }
 }
 
@@ -516,3 +435,256 @@ impl DependencyTree {
 //           `-> Quux -> Corge -^
 //            Qux    `-> Garply -^
 //                   Quux2
+
+fn to_type_linker(ast: syn::File) -> TypeLinker {
+    let items = ast.items;
+    let root = items.iter()
+        .find(|item| match item {
+            Item::Struct(item_struct) => is_item_struct_root(item_struct),
+            _ => false
+        }).expect("").clone();
+    TypeLinker::new(items, root)
+}
+
+struct TypeLinker {
+    root: Item,
+    items: Vec<Item>,
+    links: HashMap<Vec<FieldItemOrVariantIdent>, HashMap<Variant, Option<Item>>>,
+}
+
+#[derive(Clone, Hash, PartialEq, Eq)]
+enum FieldItemOrVariantIdent {
+    FieldItemIdent {
+        field_ident: Ident,
+        item_ident: Ident
+    },
+    VariantIdent {
+        variant_ident: Ident
+    }
+}
+
+impl FieldItemOrVariantIdent {
+    fn builder_ident(&self) -> Ident {
+        format_ident!("{}_builder", match self {
+            FieldItemOrVariantIdent::FieldItemIdent { item_ident, .. } => item_ident,
+            FieldItemOrVariantIdent::VariantIdent { variant_ident } => variant_ident
+        }.to_string().to_lowercase())
+    }
+
+    fn field_ident(&self) -> Ident {
+        format_ident!("{}", match self {
+            FieldItemOrVariantIdent::FieldItemIdent { field_ident, .. } => field_ident,
+            FieldItemOrVariantIdent::VariantIdent { variant_ident } => variant_ident
+        }.to_string().to_lowercase())
+    }
+
+    fn item_as_field_ident(&self) -> Ident {
+        format_ident!("{}", match self {
+            FieldItemOrVariantIdent::FieldItemIdent { item_ident, .. } => item_ident,
+            FieldItemOrVariantIdent::VariantIdent { .. } => panic!("Requesting item ident from variant.")
+        }.to_string().to_lowercase())
+    }
+}
+
+impl TypeLinker {
+    fn new(items: Vec<Item>, root: Item) -> TypeLinker {
+        TypeLinker { items, root, links: HashMap::default() }
+    }
+
+    fn get_item_by_field(&self, field: &Field) -> Item {
+        let field_ident = match &field.ty {
+            Type::Path(type_path) => type_path.path.get_ident().unwrap().clone(),
+            _ => panic!("Cannot get type ident of non path field type.")
+        };
+        self.items.iter()
+            .find(|item| match item {
+                Item::Enum(item_enum) => item_enum.ident == field_ident,
+                Item::Struct(item_struct) => item_struct.ident == field_ident,
+                _ => false
+            })
+            .expect(&format!("Cannot find item with type {}.", field_ident))
+            .clone()
+    }
+
+    fn extrapolate(mut self) -> Vec<TokenStream> {
+        self.extrapolate_item(vec![], self.root.clone(), None);
+        LinkCompiler::new(item_to_ident(&self.root).unwrap(), self.links).compile()
+    }
+
+    fn extrapolate_item(&mut self, from: Vec<FieldItemOrVariantIdent>, item: Item, next: Option<Item>) {
+        match item {
+            Item::Enum(item_enum) => {
+                self.extrapolate_enum(from, item_enum, next)
+            }
+            Item::Struct(item_struct) => {
+                self.extrapolate_fields(from, item_struct.fields, next);
+            }
+            _ => {}
+        };
+    }
+
+    fn extrapolate_enum(&mut self, from: Vec<FieldItemOrVariantIdent>, item_enum: ItemEnum, next: Option<Item>) {
+        item_enum.variants.pairs()
+            .map(|pair| pair.into_value().clone())
+            .for_each(|variant| self.store_link(from.clone(), variant, next.clone()));
+    }
+
+    fn store_link(&mut self, from: Vec<FieldItemOrVariantIdent>, variant: Variant, next: Option<Item>) {
+        let mut from_clone = from.clone();
+        from_clone.push(FieldItemOrVariantIdent::VariantIdent { variant_ident: variant.ident.clone() });
+        let next = self.extrapolate_fields(from_clone, variant.fields.clone(), next.clone());
+        let mut inner_map = self.links.remove(&from).unwrap_or(HashMap::new());
+        inner_map.insert(variant, next);
+        self.links.insert(from.clone(), inner_map);
+    }
+
+    fn extrapolate_fields(&mut self, mut from: Vec<FieldItemOrVariantIdent>, fields: Fields, next: Option<Item>) -> Option<Item> {
+        if fields.is_empty() {
+            return next;
+        }
+        let fields = match fields {
+            Fields::Named(fields_named) => fields_named.named,
+            Fields::Unnamed(fields_unnamed) => fields_unnamed.unnamed,
+            Fields::Unit => panic!("Unsupported unit field.")
+        };
+        let first_field = fields.first().unwrap().clone();
+        let last_field = fields.last().unwrap().clone();
+        let last_item = self.get_item_by_field(&last_field);
+        fields.into_pairs()
+            .map(|pair| pair.into_value())
+            .tuple_windows()
+            .for_each(|(f1, f2)| self.link_fields(from.clone(), f1, f2));
+        let field_item_ident = FieldItemOrVariantIdent::FieldItemIdent {
+            field_ident: TypeLinker::struct_field_to_builder_field_name(&last_field),
+            item_ident: item_to_ident(&self.get_item_by_field(&last_field)).unwrap(),
+        };
+        from.push(field_item_ident);
+        self.extrapolate_item(from, last_item, next);
+        Some(self.get_item_by_field(&first_field))
+    }
+
+    fn link_fields(&mut self, mut from: Vec<FieldItemOrVariantIdent>, f1: Field, f2: Field) {
+        let f1_ident = TypeLinker::struct_field_to_builder_field_name(&f1);
+        let i1 = self.get_item_by_field(&f1);
+        let i2 = self.get_item_by_field(&f2);
+        from.push(FieldItemOrVariantIdent::FieldItemIdent { field_ident: f1_ident, item_ident: item_to_ident(&i1).unwrap() });
+        self.extrapolate_item(from, i1, Some(i2));
+    }
+
+    fn struct_field_to_builder_field_name(field: &Field) -> Ident {
+        match &field.ident {
+            None => {
+                match &field.ty {
+                    Type::Path(type_path) => match type_path.path.get_ident() {
+                        None => panic!("Path type has no ident."),
+                        Some(ident) => ident.clone()
+                    },
+                    _ => panic!("Field type is no path type")
+                }
+            }
+            Some(ident) => ident.clone()
+        }
+    }
+}
+
+fn item_to_ident(item: &Item) -> Option<Ident> {
+    match item {
+        Item::Struct(item_struct) => Some(item_struct.ident.clone()),
+        Item::Enum(item_enum) => Some(item_enum.ident.clone()),
+        _ => None
+    }
+}
+
+struct LinkCompiler {
+    root: Ident,
+    links: HashMap<Vec<FieldItemOrVariantIdent>, HashMap<Variant, Option<Item>>>,
+}
+
+impl LinkCompiler {
+    fn new(root: Ident, links: HashMap<Vec<FieldItemOrVariantIdent>, HashMap<Variant, Option<Item>>>) -> LinkCompiler {
+        LinkCompiler { root, links }
+    }
+
+    fn compile(self) -> Vec<TokenStream> {
+        self.links.iter()
+            .map(|(path, variant_to_next)| {
+                self.entry_to_impl_block(path, variant_to_next)
+            })
+            .collect::<Vec<TokenStream>>()
+    }
+
+    fn entry_to_impl_block(&self, path: &Vec<FieldItemOrVariantIdent>, variant_to_next: &HashMap<Variant, Option<Item>>) -> TokenStream {
+        let enum_is_sculptable = variant_to_next.iter().any(|(variant, _)| !variant.fields.is_empty());
+        let (path, enum_type) = LinkCompiler::compile_path(&path, enum_is_sculptable);
+        let arms = variant_to_next.iter()
+            .map(|(variant, next)| LinkCompiler::compile_arm(&enum_type, variant, next))
+            .collect::<Vec<TokenStream>>();
+        let fulfill_method = LinkCompiler::compile_fulfill_method(&enum_type, path, arms);
+        LinkCompiler::compile_impl_block(&self.root, &enum_type, fulfill_method)
+    }
+
+    fn compile_path(path: &Vec<FieldItemOrVariantIdent>, sculptable: bool) -> (TokenStream, Ident) {
+        let (last, builders) = path.split_last().unwrap();
+        let enum_type = path.iter()
+            .rfind(|ident| match ident {
+                FieldItemOrVariantIdent::FieldItemIdent { .. } => true,
+                FieldItemOrVariantIdent::VariantIdent { .. } => false
+            })
+            .map(|ident| match ident {
+                FieldItemOrVariantIdent::FieldItemIdent { item_ident, .. } => item_ident,
+                FieldItemOrVariantIdent::VariantIdent { .. } => panic!("Variant ident not supposed to be found when searching for item.")
+            })
+            .unwrap()
+            .clone();
+        let mut builders = builders.iter()
+            .map(|b| b.builder_ident())
+            .collect::<Vec<Ident>>();
+        let last = if sculptable {
+            let last_builder = last.builder_ident();
+            builders.push(last_builder);
+            last.item_as_field_ident()
+        } else {
+            last.field_ident()
+        };
+        (quote! {
+            self.#(#builders.)*#last = Some(requirement.clone());
+        }, enum_type)
+    }
+
+    fn compile_arm(enum_type: &Ident, variant: &Variant, next: &Option<Item>) -> TokenStream {
+        let options_enum_type = format_ident!("{}{}", enum_type, OPTIONS);
+        let variant_ident = variant.ident.clone();
+        let pick_next_call = if let Some(next) = next {
+            let pick_next = format_ident!("pick_{}", item_to_ident(next).unwrap().to_string().to_lowercase());
+            quote!(self.callbacks.#pick_next(self))
+        } else {
+            quote!({})
+        };
+        quote! {
+            #options_enum_type::#variant_ident => #pick_next_call
+        }
+    }
+
+    fn compile_fulfill_method(enum_type: &Ident, path: TokenStream, arms: Vec<TokenStream>) -> TokenStream {
+        let options_enum_type = format_ident!("{}{}", enum_type, OPTIONS);
+        quote! {
+            fn fulfill(&mut self, requirement: &#options_enum_type) {
+                #path
+                match requirement {
+                    #(#arms,)*
+                }
+            }
+        }
+    }
+
+    fn compile_impl_block(root_ident: &Ident, enum_type: &Ident, fulfill_method: TokenStream) -> TokenStream {
+        let root_builder = format_ident!("{}Builder", root_ident);
+        let root_builder_callbacks = format_ident!("{}Callbacks", root_builder);
+        let enum_picker = format_ident!("{}Picker", enum_type);
+        quote! {
+            impl<'a, T: #root_builder_callbacks> #enum_picker for #root_builder<'a, T> {
+                #fulfill_method
+            }
+        }
+    }
+}

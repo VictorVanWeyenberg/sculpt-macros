@@ -17,3 +17,4 @@ syn = { version = "~2", features = ["full", "extra-traits"] }
 quote = "~1"
 proc-macro2 = "~1"
 rust-format = "0.3.4"
+itertools = "0.13.0"

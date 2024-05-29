@@ -4,8 +4,8 @@ use proc_macro2::Ident;
 use quote::{format_ident, quote};
 use syn::{DataEnum, Fields, Type, Variant};
 
-use crate::generate::format::SculptFormatter;
-use crate::generate::{field_has_sculpt_attribute, Field};
+use crate::macros::format::SculptFormatter;
+use crate::macros::{field_has_sculpt_attribute, Field};
 
 pub struct Pickable {
     name: String,
