@@ -615,27 +615,28 @@ impl LinkCompiler {
 
     fn entry_to_impl_block(&self, path: &Vec<FieldItemOrVariantIdent>, variant_to_next: &HashMap<Variant, Option<Item>>) -> TokenStream {
         let enum_is_sculptable = variant_to_next.iter().any(|(variant, _)| !variant.fields.is_empty());
-        let (path, enum_type) = LinkCompiler::compile_path(&path, enum_is_sculptable);
+        let last_item_type = LinkCompiler::get_last_item_type(&path);
+        let path = LinkCompiler::compile_path(&path, enum_is_sculptable);
         let arms = variant_to_next.iter()
-            .map(|(variant, next)| LinkCompiler::compile_arm(&enum_type, variant, next))
+            .map(|(variant, next)| LinkCompiler::compile_arm(&last_item_type, variant, next))
             .collect::<Vec<TokenStream>>();
-        let fulfill_method = LinkCompiler::compile_fulfill_method(&enum_type, path, arms);
-        LinkCompiler::compile_impl_block(&self.root, &enum_type, fulfill_method)
+        let fulfill_method = LinkCompiler::compile_fulfill_method(&last_item_type, path, arms);
+        LinkCompiler::compile_impl_block(&self.root, &last_item_type, fulfill_method)
     }
 
-    fn compile_path(path: &Vec<FieldItemOrVariantIdent>, sculptable: bool) -> (TokenStream, Ident) {
-        let (last, builders) = path.split_last().unwrap();
-        let enum_type = path.iter()
-            .rfind(|ident| match ident {
-                FieldItemOrVariantIdent::FieldItemIdent { .. } => true,
-                FieldItemOrVariantIdent::VariantIdent { .. } => false
-            })
-            .map(|ident| match ident {
-                FieldItemOrVariantIdent::FieldItemIdent { item_ident, .. } => item_ident,
-                FieldItemOrVariantIdent::VariantIdent { .. } => panic!("Variant ident not supposed to be found when searching for item.")
+    fn get_last_item_type(path: &Vec<FieldItemOrVariantIdent>) -> Ident {
+        path.iter()
+            .rev()
+            .find_map(|ident| match ident {
+                FieldItemOrVariantIdent::FieldItemIdent { item_ident, .. } => Some(item_ident),
+                FieldItemOrVariantIdent::VariantIdent { .. } => None
             })
             .unwrap()
-            .clone();
+            .clone()
+    }
+
+    fn compile_path(path: &Vec<FieldItemOrVariantIdent>, sculptable: bool) -> TokenStream {
+        let (last, builders) = path.split_last().unwrap();
         let mut builders = builders.iter()
             .map(|b| b.builder_ident())
             .collect::<Vec<Ident>>();
@@ -646,9 +647,9 @@ impl LinkCompiler {
         } else {
             last.field_ident()
         };
-        (quote! {
+        quote! {
             self.#(#builders.)*#last = Some(requirement.clone());
-        }, enum_type)
+        }
     }
 
     fn compile_arm(enum_type: &Ident, variant: &Variant, next: &Option<Item>) -> TokenStream {
