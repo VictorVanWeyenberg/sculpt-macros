@@ -1,6 +1,6 @@
-use std::fmt::Display;
-
 use sculpt::{Picker, Sculptor};
+
+use crate::Race::Dwarf;
 
 include!(concat!(env!("OUT_DIR"), "/tests/test.rs"));
 
@@ -9,6 +9,8 @@ fn it_works() {
     let mut callbacks = SheetBuilderCallbacksImpl();
     let sheet = Sheet::build(&mut callbacks);
     println!("{:?}", sheet);
+    assert_eq!(sheet.race, Dwarf { subrace: DwarfSubrace::HillDwarf, tool_proficiency: ToolProficiency::Hammer });
+    assert_eq!(sheet.class, Class::Bard);
 }
 
 #[derive(Debug, Sculptor)]
@@ -18,7 +20,7 @@ struct Sheet {
     class: Class,
 }
 
-#[derive(Debug, Picker)]
+#[derive(Debug, Picker, PartialEq)]
 pub enum Race {
     Dwarf {
         subrace: DwarfSubrace,
@@ -30,32 +32,32 @@ pub enum Race {
     },
 }
 
-#[derive(Debug, Picker)]
+#[derive(Debug, Picker, PartialEq)]
 pub enum Class {
     Bard,
     Paladin,
 }
 
-#[derive(Debug, Picker)]
+#[derive(Debug, Picker, PartialEq)]
 pub enum DwarfSubrace {
     HillDwarf,
     MountainDwarf,
 }
 
-#[derive(Debug, Picker)]
+#[derive(Debug, Picker, PartialEq)]
 pub enum ToolProficiency {
     Hammer,
     Saw,
 }
 
-#[derive(Debug, Picker)]
+#[derive(Debug, Picker, PartialEq)]
 pub enum ElfSubrace {
     DarkElf,
     HighElf,
     WoodElf(Cantrip),
 }
 
-#[derive(Debug, Picker)]
+#[derive(Debug, Picker, PartialEq)]
 pub enum Cantrip {
     Prestidigitation,
     Guidance,

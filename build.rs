@@ -4,7 +4,6 @@ use std::fmt::Debug;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
 
 use itertools::Itertools;
 use proc_macro2::{Ident, TokenStream, TokenTree};
@@ -28,17 +27,6 @@ impl DependencyTree {
         DependencyTree { nodes }
     }
 
-    fn find_node(&self, d_type: &Type) -> &DependencyNode {
-        match d_type {
-            Type::Path(type_path) => self
-                .nodes
-                .iter()
-                .find(|dn| dn.name == *type_path.path.get_ident().unwrap())
-                .unwrap(),
-            _ => panic!("Finding node with type that's not a type path."),
-        }
-    }
-
     fn find_root(&self) -> Option<&DependencyNode> {
         let mut possible_roots = self.nodes.iter()
             .filter(|node| node.d_type.is_root());
@@ -55,7 +43,6 @@ impl DependencyTree {
 
 #[derive(Debug)]
 struct DependencyNode {
-    name: Ident,
     d_type: DependencyType,
     formatter: IdentFormatter,
 }
@@ -64,7 +51,6 @@ impl DependencyNode {
     fn new(name: Ident, d_type: DependencyType) -> DependencyNode {
         let formatter = IdentFormatter(name.clone());
         DependencyNode {
-            name,
             d_type,
             formatter,
         }
@@ -100,43 +86,30 @@ impl IdentFormatter {
     fn picker_trait(&self) -> Ident {
         format_ident!("{}Picker", self.0)
     }
-
-    fn ident_builder(&self) -> Ident {
-        format_ident!("{}Builder", self.0)
-    }
-
-    fn options_enum(&self) -> Ident {
-        format_ident!("{}{}", self.0, OPTIONS)
-    }
 }
 
 #[derive(Debug)]
 enum DependencyType {
     Struct {
-        fields: Vec<StructField>,
         is_root: bool,
     },
-    Tuple {
-        types: Vec<Type>,
-    },
+    Tuple,
     Enum {
-        variants: Vec<EnumVariantType>,
         is_pickable: bool,
     },
 }
 
 impl DependencyType {
-    fn new_struct(fields: Vec<StructField>, is_root: bool) -> DependencyType {
-        DependencyType::Struct { fields, is_root }
+    fn new_struct(is_root: bool) -> DependencyType {
+        DependencyType::Struct { is_root }
     }
 
-    fn new_tuple(types: Vec<Type>) -> DependencyType {
-        DependencyType::Tuple { types }
+    fn new_tuple() -> DependencyType {
+        DependencyType::Tuple
     }
 
-    fn new_enum(variants: Vec<EnumVariantType>, is_pickable: bool) -> DependencyType {
+    fn new_enum(is_pickable: bool) -> DependencyType {
         DependencyType::Enum {
-            variants,
             is_pickable,
         }
     }
@@ -154,60 +127,6 @@ impl DependencyType {
             DependencyType::Struct { .. } => false,
             DependencyType::Enum { is_pickable, .. } => *is_pickable,
             DependencyType::Tuple { .. } => false
-        }
-    }
-}
-
-#[derive(Debug)]
-struct StructField {
-    name: Ident,
-    s_type: Rc<Type>,
-    is_sculptable: bool,
-}
-
-impl StructField {
-    fn new(name: Ident, s_type: Type, is_sculptable: bool) -> StructField {
-        StructField {
-            name,
-            s_type: Rc::new(s_type),
-            is_sculptable,
-        }
-    }
-}
-
-#[derive(Debug)]
-enum EnumVariantType {
-    Struct {
-        name: Ident,
-        fields: Vec<StructField>,
-    },
-    Tuple {
-        name: Ident,
-        types: Vec<Type>,
-    },
-    Raw {
-        name: Ident,
-    },
-}
-
-impl EnumVariantType {
-    fn new_struct(name: Ident, fields: Vec<StructField>) -> EnumVariantType {
-        EnumVariantType::Struct { name, fields }
-    }
-
-    fn new_tuple(name: Ident, types: Vec<Type>) -> EnumVariantType {
-        EnumVariantType::Tuple { name, types }
-    }
-
-    fn new_raw(name: Ident) -> EnumVariantType {
-        EnumVariantType::Raw { name }
-    }
-
-    fn name(&self) -> &Ident {
-        match self {
-            EnumVariantType::Struct { name, .. } => name,
-            EnumVariantType::Tuple { name, .. } => name,
-            EnumVariantType::Raw { name } => name,
         }
     }
 }
@@ -331,59 +250,18 @@ fn attribute_is_derive(attr: &Attribute, derived: &str) -> bool {
 
 fn to_enum_dependency_node(item_enum: ItemEnum) -> DependencyNode {
     let is_pickable = is_item_enum_picker(&item_enum);
-    let variants: Vec<EnumVariantType> = item_enum
-        .variants
-        .into_iter()
-        .map(to_enum_variant_type)
-        .collect();
-    let d_type = DependencyType::new_enum(variants, is_pickable);
+    let d_type = DependencyType::new_enum(is_pickable);
     DependencyNode::new(item_enum.ident, d_type)
-}
-
-fn to_enum_variant_type(variant: Variant) -> EnumVariantType {
-    match variant.fields {
-        Fields::Named(named_fields) => {
-            let fields: Vec<StructField> = named_fields
-                .named
-                .into_iter()
-                .map(to_struct_field)
-                .collect();
-            EnumVariantType::new_struct(variant.ident, fields)
-        }
-        Fields::Unnamed(unnamed_fields) => {
-            let types: Vec<Type> = unnamed_fields.unnamed.into_iter().map(|f| f.ty).collect();
-            EnumVariantType::new_tuple(variant.ident, types)
-        }
-        Fields::Unit => EnumVariantType::new_raw(variant.ident),
-    }
-}
-
-fn to_struct_field(field: Field) -> StructField {
-    let is_sculptable = field
-        .attrs
-        .iter()
-        .any(|attr| attr.path().is_ident("sculptable"));
-    StructField::new(field.ident.unwrap(), field.ty, is_sculptable)
 }
 
 fn to_struct_dependency_node(item_struct: ItemStruct) -> DependencyNode {
     let is_root = is_item_struct_root(&item_struct);
     let d_type = match item_struct.fields {
-        Fields::Named(named_fields) => {
-            let fields: Vec<StructField> = named_fields
-                .named
-                .into_iter()
-                .map(to_struct_field)
-                .collect();
-            DependencyType::new_struct(fields, is_root)
+        Fields::Named(_) => {
+            DependencyType::new_struct(is_root)
         }
-        Fields::Unnamed(unnamed_fields) => {
-            let types: Vec<Type> = unnamed_fields
-                .unnamed
-                .into_iter()
-                .map(|field| field.ty)
-                .collect();
-            DependencyType::new_tuple(types)
+        Fields::Unnamed(_) => {
+            DependencyType::new_tuple()
         }
         Fields::Unit => panic!("Struct field turns out to be unit!"),
     };

@@ -127,7 +127,7 @@ impl Pickable {
             .collect();
         quote! {
             #[derive(Clone, Copy)]
-            enum #options_type {
+            pub enum #options_type {
                 #(#options,)*
             }
 
