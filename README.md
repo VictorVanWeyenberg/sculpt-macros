@@ -26,7 +26,7 @@ generate the following code:
 ```rust
 pub struct SheetBuilder<'a, T: SheetBuilderCallbacks> {
     race_builder: RaceBuilder,
-    class: Option<ClassDiscriminants>,
+    class: Option<ClassOptions>,
 
     callbacks: &'a T
 }
@@ -63,7 +63,7 @@ down the `Race` dependency tree in order to build the `Race`. `Race` is annotate
 
 Because of these annotations, we can generate the following: 
 
-- `SheetBuilder` needs a `RaceBuilder` and an `Option<ClassDiscriminants>`.
+- `SheetBuilder` needs a `RaceBuilder` and an `Option<ClassOptions>`.
 - The `SheetBuilder` constructor method can be filled in.
 - The `SheetBuilder` build method can be filled in.
 
@@ -81,30 +81,30 @@ to derive the Picker for it. We'll cover how to use the picker traits below.
 
 Deriving the Picker trait will generate the following code:
 
-- ClassDiscriminants so a Class can be chosen without first havinf to provide the dependencies.
-- An Into<Class> implementation for ClassDiscriminants.
+- ClassOptions so a Class can be chosen without first havinf to provide the dependencies.
+- An Into<Class> implementation for ClassOptions.
 - The ClassPicker trait which provides all choices to the builder and allows it to fulfill the dependency. We'll talk 
   about how to use these trait later on.
 
 ```rust
-enum ClassDiscriminants {
+enum ClassOptions {
     Bard, Paladin    
 }
 
-impl Into<Class> for ClassDiscriminants {
+impl Into<Class> for ClassOptions {
     fn into(self) -> Class {
         match self {
-            ClassDiscriminants::Bard => Class::Bard,
-            ClassDiscriminants::Paladin => Class::Paladin,
+            ClassOptions::Bard => Class::Bard,
+            ClassOptions::Paladin => Class::Paladin,
         }
     }
 }
 
 pub trait ClassPicker {
-    fn options(&self) -> Vec<ClassDiscriminants> {
-        ClassDiscriminants::VARIANTS.to_vec()
+    fn options(&self) -> Vec<ClassOptions> {
+        ClassOptions::VARIANTS.to_vec()
     }
-    fn fulfill(&mut self, requirement: &ClassDiscriminants);
+    fn fulfill(&mut self, requirement: &ClassOptions);
 }
 ```
 
@@ -145,15 +145,15 @@ The will generate the following code:
 
 ```rust
 pub trait RacePicker {
-    fn options(&self) -> Vec<RaceDiscriminants> {
-        RaceDiscriminants::VARIANTS.to_vec()
+    fn options(&self) -> Vec<RaceOptions> {
+        RaceOptions::VARIANTS.to_vec()
     }
-    fn fulfill(&mut self, requirement: &RaceDiscriminants);
+    fn fulfill(&mut self, requirement: &RaceOptions);
 }
 
 #[derive(Default)]
 struct RaceBuilder {
-    race: Option<RaceDiscriminants>,
+    race: Option<RaceOptions>,
     dwarf_builder: DwarfBuilder,
     elf_builder: ElfBuilder,
 }
@@ -161,16 +161,16 @@ struct RaceBuilder {
 impl RaceBuilder {
     fn build(self) -> Race {
         match self.race.unwrap() {
-            RaceDiscriminants::Dwarf => self.dwarf_builder.build(),
-            RaceDiscriminants::Elf => self.elf_builder.build()
+            RaceOptions::Dwarf => self.dwarf_builder.build(),
+            RaceOptions::Elf => self.elf_builder.build()
         }
     }
 }
 
 #[derive(Default)]
 struct DwarfBuilder {
-    subrace: Option<DwarfSubraceDiscriminants>,
-    tool_proficiency: Option<ToolProficiencyDiscriminants>,
+    subrace: Option<DwarfSubraceOptions>,
+    tool_proficiency: Option<ToolProficiencyOptions>,
 }
 
 impl DwarfBuilder {

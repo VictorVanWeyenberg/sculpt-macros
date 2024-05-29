@@ -1,7 +1,7 @@
 use proc_macro2::Ident;
 use quote::format_ident;
 
-const OPTIONS: &str = "Discriminants";
+const OPTIONS: &str = "Options";
 
 pub struct SculptFormatter(String);
 

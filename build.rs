@@ -12,7 +12,7 @@ use quote::{format_ident, quote};
 use rust_format::{Formatter, RustFmt};
 use syn::{Attribute, Field, Fields, Item, ItemEnum, ItemStruct, Type, Variant};
 
-const OPTIONS: &str = "Discriminants";
+const OPTIONS: &str = "Options";
 
 // =================================================================================================
 // Dependency Tree Domain
