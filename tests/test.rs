@@ -1,6 +1,4 @@
-use sculpt::{Picker, Sculptor};
-
-use crate::Race::Dwarf;
+use sculpt_macros::{Picker, Sculptor};
 
 include!(concat!(env!("OUT_DIR"), "/tests/test.rs"));
 
@@ -9,7 +7,7 @@ fn it_works() {
     let mut callbacks = SheetBuilderCallbacksImpl();
     let sheet = Sheet::build(&mut callbacks);
     println!("{:?}", sheet);
-    assert_eq!(sheet.race, Dwarf { subrace: DwarfSubrace::HillDwarf, tool_proficiency: ToolProficiency::Hammer });
+    assert_eq!(sheet.race, Race::Dwarf { subrace: DwarfSubrace::HillDwarf, tool_proficiency: ToolProficiency::Hammer });
     assert_eq!(sheet.class, Class::Bard);
 }
 

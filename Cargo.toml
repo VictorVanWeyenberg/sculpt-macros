@@ -1,5 +1,5 @@
 [package]
-name = "sculpt"
+name = "sculpt-macros"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,14 +7,9 @@ edition = "2021"
 proc-macro = true
 
 [dependencies]
-syn = "~2"
-quote = "~1"
-proc-macro2 = "~1"
-regex = "1.10.4"
+syn = "2.0.66"
+quote = "1.0.36"
+proc-macro2 = "1.0.84"
 
 [build-dependencies]
-syn = { version = "~2", features = ["full", "extra-traits"] }
-quote = "~1"
-proc-macro2 = "~1"
-rust-format = "0.3.4"
-itertools = "0.13.0"
+sculpt = { git = "https://github.com/VictorVanWeyenberg/sculpt.git", branch = "development" }
