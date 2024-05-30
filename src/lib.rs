@@ -31,3 +31,14 @@ pub fn derive_picker(input: TokenStream) -> TokenStream {
     let pickable = build_pickable(name, data_enum);
     pickable.generate()
 }
+
+#[proc_macro_attribute]
+pub fn sculpt(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    match syn::parse::<syn::Item>(item.clone()) {
+        Ok(parsed_item) => match parsed_item {
+            syn::Item::Struct(_) => item,
+            _ => panic!("The sculpt attribute is meant for structs only.")
+        }
+        Err(err) => panic!("{}", err)
+    }
+}

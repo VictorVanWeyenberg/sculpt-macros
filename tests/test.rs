@@ -1,4 +1,4 @@
-use sculpt_macros::{Picker, Sculptor};
+use sculpt_macros::{Picker, sculpt, Sculptor};
 
 include!(concat!(env!("OUT_DIR"), "/tests/test.rs"));
 
@@ -11,6 +11,7 @@ fn it_works() {
     assert_eq!(sheet.class, Class::Bard);
 }
 
+#[sculpt]
 #[derive(Debug, Sculptor)]
 struct Sheet {
     #[sculptable]
