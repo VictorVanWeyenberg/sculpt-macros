@@ -24,12 +24,4 @@ impl SculptFormatter {
     pub fn format_builder_field_name(&self) -> Ident {
         format_ident!("{}_builder", self.0.to_lowercase())
     }
-
-    pub fn format_option_field(&self) -> Ident {
-        format_ident!("{}", self.0.to_lowercase())
-    }
-
-    pub fn format_type(&self) -> Ident {
-        format_ident!("{}", self.0)
-    }
 }

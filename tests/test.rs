@@ -1,4 +1,4 @@
-use sculpt_macros::{Picker, sculpt, Sculptor};
+use sculpt_macros::{sculpt, Sculptor};
 
 include!(concat!(env!("OUT_DIR"), "/tests/test.rs"));
 
@@ -19,44 +19,43 @@ struct Sheet {
     class: Class,
 }
 
-#[derive(Debug, Picker, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum Race {
     Dwarf {
         subrace: DwarfSubrace,
         tool_proficiency: ToolProficiency,
     },
     Elf {
-        #[sculptable]
         subrace: ElfSubrace,
     },
 }
 
-#[derive(Debug, Picker, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum Class {
     Bard,
     Paladin,
 }
 
-#[derive(Debug, Picker, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum DwarfSubrace {
     HillDwarf,
     MountainDwarf,
 }
 
-#[derive(Debug, Picker, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum ToolProficiency {
     Hammer,
     Saw,
 }
 
-#[derive(Debug, Picker, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum ElfSubrace {
     DarkElf,
     HighElf,
     WoodElf(Cantrip),
 }
 
-#[derive(Debug, Picker, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum Cantrip {
     Prestidigitation,
     Guidance,

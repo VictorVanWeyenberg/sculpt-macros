@@ -19,19 +19,6 @@ pub fn derive_root_builder(input: TokenStream) -> TokenStream {
     sculptable.generate().into()
 }
 
-#[proc_macro_derive(Picker, attributes(sculptable))]
-pub fn derive_picker(input: TokenStream) -> TokenStream {
-    let ast: DeriveInput = syn::parse(input).unwrap();
-    let (name, data_enum) = match ast.data {
-        Data::Enum(s) => (ast.ident, s),
-        Data::Struct(_) | Data::Union(_) => {
-            panic!("Deriving Sculptor is only supported for structs.")
-        }
-    };
-    let pickable = build_pickable(name, data_enum);
-    pickable.generate()
-}
-
 #[proc_macro_attribute]
 pub fn sculpt(_attr: TokenStream, item: TokenStream) -> TokenStream {
     match syn::parse::<syn::Item>(item.clone()) {
