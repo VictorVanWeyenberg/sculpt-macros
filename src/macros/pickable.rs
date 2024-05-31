@@ -27,16 +27,9 @@ impl Pickable {
     pub fn generate(self) -> TokenStream {
         let pickable_builder = self.generate_pickable_builder();
         let builder_impl = self.impl_pickable_builder();
-        let pickable_name_formatter: SculptFormatter = self.name.into();
-        let variant_builders: Vec<proc_macro2::TokenStream> = self
-            .options
-            .into_iter()
-            .map(|po| po.generate_variant_builder_and_impl(pickable_name_formatter.format_type()))
-            .collect();
         let gen = quote! {
             #pickable_builder
             #builder_impl
-            #(#variant_builders)*
         };
         gen.into()
     }
@@ -118,14 +111,6 @@ impl PickableOption {
         }
     }
 
-    fn fields(&self) -> Option<&Vec<Field>> {
-        match self {
-            PickableOption::Struct { fields, .. } => Some(fields),
-            PickableOption::Tuple { fields, .. } => Some(fields),
-            PickableOption::Raw { .. } => None,
-        }
-    }
-
     fn is_sculptable(&self) -> bool {
         match self {
             PickableOption::Struct { .. } => true,
@@ -170,85 +155,6 @@ impl PickableOption {
             let message = format!("Field {} not set in {}Builder", option_field, options_type);
             quote! {
                 #options_type::#simple_variant => self.#option_field.expect(#message).into()
-            }
-        }
-    }
-
-    fn generate_variant_builder_and_impl(self, enum_type_ident: Ident) -> proc_macro2::TokenStream {
-        if !self.is_sculptable() {
-            return quote!();
-        }
-        let builder = self.generate_builder();
-        let builder_impl = self.generate_builder_impl(enum_type_ident);
-        quote! {
-            #builder
-            #builder_impl
-        }
-    }
-
-    fn generate_builder(&self) -> proc_macro2::TokenStream {
-        let pickable_option_name_formatter: SculptFormatter = self.name().clone().into();
-        let builder_type = pickable_option_name_formatter.format_builder_type();
-        let builder_fields: Vec<proc_macro2::TokenStream> = self
-            .fields()
-            .expect("Builder generated while fields are empty.")
-            .iter()
-            .map(|f| f.to_builder_field())
-            .collect();
-        quote! {
-            #[derive(Default)]
-            struct #builder_type {
-                #(#builder_fields,)*
-            }
-        }
-    }
-
-    fn generate_builder_impl(&self, enum_type_ident: Ident) -> proc_macro2::TokenStream {
-        let pickable_option_name_formatter: SculptFormatter = self.name().clone().into();
-        let builder_type = pickable_option_name_formatter.format_builder_type();
-        let builder_calls: Vec<proc_macro2::TokenStream> = self
-            .fields()
-            .expect("Generating builder implementation but there are not fields.")
-            .iter()
-            .map(|f| f.to_builder_call(&builder_type))
-            .collect();
-        let constructor = self.generate_constructor_call(&enum_type_ident);
-        quote! {
-            impl #builder_type {
-                pub fn build(self) -> #enum_type_ident {
-                    #(#builder_calls;)*
-                    #constructor
-                }
-            }
-        }
-    }
-
-    fn generate_constructor_call(&self, enum_type_ident: &Ident) -> proc_macro2::TokenStream {
-        let fields: Vec<Ident> = match self {
-            PickableOption::Struct { fields, .. } => fields,
-            PickableOption::Tuple { fields, .. } => fields,
-            PickableOption::Raw { .. } => panic!("Generaring constructor call for RAW enum type."),
-        }
-        .iter()
-        .map(|f| f.format_field_name())
-        .collect();
-        let pickable_option_name_formatter: SculptFormatter = self.name().clone().into();
-        let enum_type = pickable_option_name_formatter.format_type();
-        match self {
-            PickableOption::Struct { .. } => {
-                quote! {
-                    #enum_type_ident::#enum_type { #(#fields,)* }
-                }
-            }
-            PickableOption::Tuple { .. } => {
-                quote! {
-                    #enum_type_ident::#enum_type ( #(#fields,)* )
-                }
-            }
-            PickableOption::Raw { .. } => {
-                quote! {
-                    panic!("Generating constructor arguments for RAW enum type.")
-                }
             }
         }
     }
