@@ -25,7 +25,6 @@ impl Pickable {
     }
 
     pub fn generate(self) -> TokenStream {
-        let picker_trait = self.generate_picker_trait();
         let pickable_builder = self.generate_pickable_builder();
         let builder_impl = self.impl_pickable_builder();
         let options_enum = self.generate_options_enum();
@@ -36,27 +35,12 @@ impl Pickable {
             .map(|po| po.generate_variant_builder_and_impl(pickable_name_formatter.format_type()))
             .collect();
         let gen = quote! {
-            #picker_trait
             #pickable_builder
             #builder_impl
             #(#variant_builders)*
             #options_enum
         };
         gen.into()
-    }
-
-    fn generate_picker_trait(&self) -> proc_macro2::TokenStream {
-        let pickable_name_formatter: SculptFormatter = self.name.clone().into();
-        let trait_name = pickable_name_formatter.format_picker_name();
-        let options_type_name = pickable_name_formatter.format_options_type();
-        quote! {
-            pub trait #trait_name {
-                fn options(&self) -> Vec<#options_type_name> {
-                    #options_type_name::VARIANTS.to_vec()
-                }
-                fn fulfill(&mut self, requirement: &#options_type_name);
-            }
-        }
     }
 
     fn generate_pickable_builder(&self) -> proc_macro2::TokenStream {

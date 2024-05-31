@@ -12,9 +12,6 @@ impl From<String> for SculptFormatter {
 }
 
 impl SculptFormatter {
-    pub fn format_picker_name(&self) -> Ident {
-        format_ident!("{}Picker", self.0)
-    }
 
     pub fn format_builder_type(&self) -> Ident {
         format_ident!("{}Builder", self.0)
