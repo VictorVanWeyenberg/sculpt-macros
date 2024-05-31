@@ -1,4 +1,4 @@
-use sculpt_macros::{sculpt, Sculptor};
+use sculpt_macros::sculpt;
 
 include!(concat!(env!("OUT_DIR"), "/tests/test.rs"));
 
@@ -12,9 +12,8 @@ fn it_works() {
 }
 
 #[sculpt]
-#[derive(Debug, Sculptor)]
-struct Sheet {
-    #[sculptable]
+#[derive(Debug)]
+pub struct Sheet {
     race: Race,
     class: Class,
 }
