@@ -1,11 +1,11 @@
 use proc_macro::TokenStream;
 
 use proc_macro2::Ident;
-use quote::{format_ident, quote};
+use quote::quote;
 use syn::{DataEnum, Fields, Type, Variant};
 
+use crate::macros::{Field, field_has_sculpt_attribute};
 use crate::macros::format::SculptFormatter;
-use crate::macros::{field_has_sculpt_attribute, Field};
 
 pub struct Pickable {
     name: String,
@@ -27,7 +27,6 @@ impl Pickable {
     pub fn generate(self) -> TokenStream {
         let pickable_builder = self.generate_pickable_builder();
         let builder_impl = self.impl_pickable_builder();
-        let options_enum = self.generate_options_enum();
         let pickable_name_formatter: SculptFormatter = self.name.into();
         let variant_builders: Vec<proc_macro2::TokenStream> = self
             .options
@@ -38,7 +37,6 @@ impl Pickable {
             #pickable_builder
             #builder_impl
             #(#variant_builders)*
-            #options_enum
         };
         gen.into()
     }
@@ -80,51 +78,6 @@ impl Pickable {
                 fn build(self) -> #simple_type {
                     match self.#option_field.unwrap() {
                         #(#pickable_builder_build_calls,)*
-                    }
-                }
-            }
-        }
-    }
-
-    fn generate_options_enum(&self) -> proc_macro2::TokenStream {
-        let pickable_name_formatter: SculptFormatter = self.name.clone().into();
-        let self_type = pickable_name_formatter.format_type();
-        let options_type = pickable_name_formatter.format_options_type();
-        let options: Vec<Ident> = self.options.iter().map(|o| o.to_option_ident()).collect();
-        let variants: Vec<proc_macro2::TokenStream> =
-            options.iter().map(|o| quote!(#options_type::#o)).collect();
-        let conversions: Vec<proc_macro2::TokenStream> = self
-            .options
-            .iter()
-            .map(|o| {
-                let pickable_option_name_formatter: SculptFormatter = o.name().clone().into();
-                if o.is_sculptable() {
-                    let option = pickable_option_name_formatter.format_type();
-                    let message = stringify!(
-                        Cannot turn #options_type::#option into #self_type without dependencies.);
-                    quote!(#options_type::#option => panic!(#message))
-                } else {
-                    let option = pickable_option_name_formatter.format_type();
-                    quote!(#options_type::#option => #self_type::#option)
-                }
-            })
-            .collect();
-        quote! {
-            #[derive(Clone, Copy)]
-            pub enum #options_type {
-                #(#options,)*
-            }
-
-            impl #options_type {
-                const VARIANTS: &'static [Self] = &[
-                    #(#variants,)*
-                ];
-            }
-
-            impl Into<#self_type> for #options_type {
-                fn into(self) -> #self_type {
-                    match self {
-                        #(#conversions,)*
                     }
                 }
             }
@@ -298,15 +251,6 @@ impl PickableOption {
                 }
             }
         }
-    }
-
-    fn to_option_ident(&self) -> Ident {
-        let name = match self {
-            PickableOption::Struct { name, .. } => name,
-            PickableOption::Tuple { name, .. } => name,
-            PickableOption::Raw { name, .. } => name,
-        };
-        format_ident!("{}", name)
     }
 }
 
