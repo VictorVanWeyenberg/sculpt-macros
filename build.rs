@@ -5,7 +5,10 @@ fn main() {
     let root_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let out_dir = env::var("OUT_DIR").expect("Cannot find out_dir.");
     let out_dir = Path::new(&out_dir);
-    vec!["tests/test.rs"]
+    vec![
+        "tests/default.rs",
+        "tests/enum_to_struct_dependency.rs"
+    ]
         .into_iter()
         .map(Path::new)
         .map(Path::to_path_buf)
