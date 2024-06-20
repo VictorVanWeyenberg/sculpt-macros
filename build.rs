@@ -7,7 +7,8 @@ fn main() {
     let out_dir = Path::new(&out_dir);
     vec![
         "tests/default.rs",
-        "tests/enum_to_struct_dependency.rs"
+        "tests/enum_to_struct_dependency.rs",
+        // "tests/many_to_one.rs"
     ]
         .into_iter()
         .map(Path::new)
